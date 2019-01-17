@@ -1,6 +1,7 @@
 # The xls file with the MPIA requested Eviction Tracking Log
 # Source data, as received from the Sherriff's Office
 in.evict<-"C:/Bmore City/Eviction Defense/Source data/Eviction Tracking Log Without Tenant Names.xls"
+google.api.key<-""
 mapout<-"filepath"
 
 source(geocoding_utils.R)
@@ -84,7 +85,7 @@ geocode.results <- do.call(
     rbind.data.frame,
     lapply(cleaning.2017$ADDRESS,
            bmoreGeocode,
-            "AIzaSyDd_Ixz10Zsq1koJEWDq9zKThBGimMg88Y"))
+            google.api.key))
 
 # cleaning.2017$ADDRESS<-paste(cleaning.2017$ADDRESS,"Baltimore","MD")
 bmore.coded.full<-filter(geocode.results,between(Latitude,39.1963325151,39.3826883618) & between(Longitude,-76.7198786773,-76.5184626337)) 
