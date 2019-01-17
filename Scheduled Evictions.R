@@ -1,6 +1,9 @@
+# The xls file with the MPIA requested Eviction Tracking Log
+# Source data, as received from the Sherriff's Office
+in.evict<-"C:/Bmore City/Eviction Defense/Source data/Eviction Tracking Log Without Tenant Names.xls"
 mapout<-"filepath"
 
-
+source(geocoding_utils.R)
 # install.packages("zoo")
 # Load Required Packages
 require("gdata")
@@ -17,9 +20,7 @@ library(stringr)
 # File path to the perl executable 
 perl<-"C:/Strawberry/perl/bin/perl.exe"
 
-# The xls file with the MPIA requested Eviction Tracking Log
-# Source data, as received from the Sherriff's Office
-in.evict<-"C:/Bmore City/Eviction Defense/Source data/Eviction Tracking Log Without Tenant Names.xls"
+
 
 # Read Sheet 1, Sep-Dec 2017
 evictions.raw<-read.xls(in.evict,skip=8,sheet=1,
