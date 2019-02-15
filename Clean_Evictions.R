@@ -8,7 +8,7 @@
 in.evict<-"Eviction Tracking Log Without Tenant Names.xls"
 
 # Output csv
-outfile <- "cleaning.csv"
+outfile <- paste0("cleaning", today(), ".csv")
 
 # Load Required Packages
 require("gdata")
@@ -78,7 +78,57 @@ fixed.dates<-as.Date(ifelse((evictions.cleaning.2$Date<as.Date('2009-01-01') & l
                                                  evictions.cleaning.2$Date))
 evictions.cleaning.2$Date<-fixed.dates
 
+names(evictions.cleaning)<-c("COUNT", 
+"DEPUTY", 
+"CLERK", 
+"TIME", 
+"DATE", 
+"DEPUTY.NAME", 
+"RECORDED.BY", 
+"ADDRESS", 
+"CASE", 
+"LAND.LORD.NOTES", 
+"T.P", 
+"T.N.P", 
+"X", 
+"ANIMAL", 
+"NO.SHOW", 
+"COMMERCIAL", 
+"CANCELATIOND")
+
+names(evictions.cleaning.2) <-
+c("CASE", 
+"X", 
+"DEPUTY", 
+"TIME", 
+"ADDRESS", 
+"CLERK", 
+"COMMENTS", 
+"DATE", 
+"Date.str"
+)
+
+evictions.cleaning$COMMENTS <- NA
+
+evictions.cleaning.3 <-
+rbind(select(evictions.cleaning,
+             CASE,
+             DEPUTY,
+             TIME,
+             ADDRESS,
+             CLERK,
+             COMMENTS,
+             DATE),
+      select(evictions.cleaning.2,
+             CASE,
+             DEPUTY,
+             TIME,
+             ADDRESS,
+             CLERK,
+             COMMENTS,
+             DATE))
+
 # Write clean dataset 
- write.csv(evictions.cleaning.2,
+ write.csv(evictions.cleaning.3,
            outfile,
            row.names = FALSE)

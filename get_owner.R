@@ -1,4 +1,4 @@
-infile <- "C:/Bmore City/Eviction Defense/Outputs/coded_evictions_2017.csv"
+infile <- "C:/Bmore City/Eviction Defense/Outputs/Geocoded Evictions 2014-12-31 to 2016-01-01.csv"
 
 
 source("C:/Bmore City/Bmore code/R_utilities.R")
@@ -18,14 +18,20 @@ cleaned.coded <- read.csv(infile,
                           stringsAsFactors = FALSE,
                           strip.white = TRUE)
 
-search.owner<-mutate(cleaned.coded, ADDRESS=sub(" Baltimore MD","",ADDRESS) %>%
-                       sub(" AVE .*$"," AVE",.) %>%
-                       sub(" RD .*$"," RD",.) %>%
-                       sub(" BLVD .*$"," RD",.))
+search.owner<-mutate(cleaned.coded, ADDRESS=gsub(" Baltimore MD","",ADDRESS) %>%
+                       gsub(" AVE .*$"," AVE",.) %>%
+                       gsub(" CT .*$"," CT",.) %>%
+                       gsub(" CR .*$"," CR",.) %>%
+                       gsub(" RD .*$"," RD",.) %>%
+                       gsub(" BLVD .*$"," RD",.))
 
 search.owner$ADDRESS <- ifelse(grepl(" ST .* ST ",search.owner$ADDRESS),
                                regmatches(search.owner$ADDRESS,regexpr("^.*ST[^(ST)]{,}", search.owner$ADDRESS, perl=TRUE)),
-                               sub(" ST .*$"," ST",search.owner$ADDRESS))
+                               gsub(" ST .*$"," ST",search.owner$ADDRESS))
+search.owner$ADDRESS <- ifelse(grepl(" DR .* DR ",search.owner$ADDRESS),
+                            regmatches(search.owner$ADDRESS,regexpr("^.*ST[^(ST)]{,}", search.owner$ADDRESS, perl=TRUE)),
+                            gsub(" DR .*$"," DR",search.owner$ADDRESS))
+
 # Initialize row for failures
 replacement<-cbind.data.frame(NA,
                               NA, 
@@ -95,19 +101,15 @@ get.owner<-function(n){
       return(replacement.2)}else{
     dot <- remDr$findElement(using = 'css',"[id='map_graphics_layer']")
     dot$clickElement()
-    Sys.sleep(2)
-    if(grepl("Searching...",read_html(remDr$getPageSource()[[1]]))){Sys.sleep(1)}
-    if(grepl("Searching...",read_html(remDr$getPageSource()[[1]]))){Sys.sleep(1)}
-    if(grepl("Searching...",read_html(remDr$getPageSource()[[1]]))){Sys.sleep(1)}
-    if(grepl("Searching...",read_html(remDr$getPageSource()[[1]]))){Sys.sleep(1)}
-    if(grepl("Searching...",read_html(remDr$getPageSource()[[1]]))){Sys.sleep(1)}
+    Sys.sleep(1)
+
     if(grepl("No information available.",read_html(remDr$getPageSource()[[1]]))){
       return(replacement.1)}else{
     sdat<-read_html(remDr$getPageSource()[[1]]) %>%
       html_nodes( css = "li a")
     sdat.ref<-xml_attr(sdat[[5]],"href")
     remDr$navigate(sdat.ref)
-    Sys.sleep(2)
+    Sys.sleep(1)
     if(grepl("There was a problem",read_html(remDr$getPageSource()[[1]]))){ return(replacement)}else{
     
     # Ok now we're on the page to scrape
@@ -168,34 +170,34 @@ remDr <- driver[["client"]]
 # Apply the function to every row number of input dataset
 new.data.3<-lapply(1:nrow(search.owner), get.owner)
 
-lengths<-unlist(lapply(new.data,length))
+lengths<-unlist(lapply(new.data.3,length))
 
 
 
-classes<-unlist(lapply(new.data,class))
-errors<-unique(new.data[classes!="data.frame"])
+classes<-unlist(lapply(new.data.3,class))
+errors<-unique(new.data.3[classes!="data.frame"])
 class.index<-which(classes=="data.frame")
-df.data<-new.data[class.index] %>%
+df.data<-new.data.3[class.index] %>%
 rbind.fill()
 # df.data<-df.data[,1:13]
 df.data$id <- class.index
 
 fail.index<-which(classes!="data.frame")
-initial<-as.data.frame(matrix(nrow = 4277,ncol = 13))
-names(initial)<-the.names
+initial<-as.data.frame(matrix(nrow = length(fail.index),ncol = 14))
+names(initial)<-names(replacement)
 initial$id<-fail.index
 
 all.new.data<-rbind(df.data,initial) %>% arrange(id)
-# write.csv(all.new.data,"C:/Bmore City/Eviction Defense/Outputs/owners_2017.csv")
+ write.csv(all.new.data,"C:/Bmore City/Eviction Defense/Outputs/owners_2015.csv")
 
 
 # Join to original dataset
 
-evictors<-cbind(evictions,all.new.data)
+evictors<-cbind(cleaned.coded,all.new.data)
 
 
 # Output
-write.csv(evictors,"C:/Bmore City/Eviction Defense/Outputs/evctions_w_owner_2017.csv")
+write.csv(evictors,"C:/Bmore City/Eviction Defense/Outputs/evctions_w_owner_2015.csv")
 
 
  
