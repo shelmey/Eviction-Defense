@@ -23,7 +23,7 @@ mapout <- paste0("Evictions ", start.date," to ",end.date,".html")
 cache.out <- paste0("addresses",today(),".csv")
 
 # Google API key
-google.api.key<-"AIzaSyB0qX044W5KwCDgWmKJQGDVZ04JKcllbrw"
+google.api.key<-""
 
 evictions<-read.csv(in.file,
                     strip.white = TRUE,
