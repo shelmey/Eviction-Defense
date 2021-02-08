@@ -1,10 +1,22 @@
 library(dplyr)
 library(jsonlite)
 library(RCurl)
+library(leaflet)
+library(sp)
+library(rgdal)
+library(sf)
+# install.packages("geosphere")
+# library(geosphere)
+
+# Put a google geocoding API key here 
 google.key <- ""
 
+# The max cluster size
 Cluster_Sizes = 10
 
+cases.in <- "/Housing/Case search/Cases_2.7.2021+60Days.csv"
+
+# geocoding function (calsl the google API)
 geocode <- function(address1="",
                     city="",
                     zip="",
@@ -93,23 +105,26 @@ geocode <- function(address1="",
 
 
 
-
-
-
-cases <- "/home/sam/GBDSA-HJC/Housing/Case search/Cases_2.7.2021+60Days.csv" %>% 
+# Read the docket source data
+cases <- cases.in %>% 
   read.csv(stringsAsFactors = F, strip.white = T)
 
+# convert date to date
 cases <- cases %>% mutate(date = date %>% as.Date())
 
+# clean addresses at least a little (remove apartment/unit numbers. Most importantly remove #)
 addresses <- trimws(cases$address_1)
-addresses <- gsub("[0-9]+$","",addresses) %>% trimws %>% trimws%>% trimws
+addresses <- gsub("[0-9]+$","",addresses) %>% trimws 
 addresses <- gsub("#$|APT\\.{0,1}$|STE\\.{0,1}$|RO{0,2}M\\.{0,1}$","",addresses) %>% trimws
-# "APT\\.{0,1} #{0,1}"
+addresses <- gsub("#","",addresses) %>% trimws
 
+# Stick that "clean" address field to the main dataframe
 cases$Address <- addresses
 
+# duplicates??
 casedups <- cases %>% filter(duplicated(cases))
 
+# geocode the addresses
 coords <- lapply(addresses, geocode, city = "Baltimore", API=google.key) 
 # goodtogo <- lapply(coords, is.list )%>% unlist
 # addresses[!goodtogo]
@@ -118,35 +133,34 @@ Geocoded <- coords %>% lapply(function(x)as.data.frame(t(unlist(x)))) %>% plyr::
 
 geocoded <- Geocoded %>% filter(!duplicated(Geocoded))
 
-geocoded %>% filter(Error.Status == "OK") %>% write.csv(paste0("/home/sam/GBDSA-HJC/Housing/Case search/address cache/Addresses cached ",Sys.Date(),".csv"), row.names = F)
+# Cache the addresses to potentially add to a reference database 
+geocoded %>% filter(Error.Status == "OK") %>% write.csv(paste0("/Housing/Case search/address cache/Addresses cached ",Sys.Date(),".csv"), row.names = F)
 
+# remove duplicates. This should be moved upstream of the geocoding                              
 dups <- Geocoded  %>% filter(duplicated(Geocoded))
 
+# Check for errors
 geocoded$Error.Status %>% table
 
-geocoded <- cbind(geocoded, cases %>% select(address_1))
-library(sf)
+# Stick the original address and date to the geocoded dataset                              
+geocoded <- cbind(geocoded, cases %>% select(address_1, date))
 
+# Results that don't make any sense. We'll output these later but for now remove them
 notgood <- geocoded %>% filter(!grepl(", MD",GEO_Address))
+                              
 geocoded <- geocoded %>% filter(grepl(", MD",GEO_Address))
 
-
-library(leaflet)
-
-
-library(sp)
-library(rgdal)
-# install.packages("geosphere")
-library(geosphere)
-
+# K Means Clustering (start with 2 clusters)
 groups <- kmeans(geocoded[,c("Longitude","Latitude")], 2)
 
 geocoded$cluster <- as.character(groups$cluster)
 
+# check for clusters that are too big                              
 clustcounts <- table(geocoded$cluster)
 needs.split <- names(clustcounts)[clustcounts>Cluster_Sizes]
 done <- length(needs.split) == 0 
 
+#Split the clusters that are too big in 2. Iterate until all the groups are small enough                              
 while(!done){
 
 for (C in needs.split) {
@@ -163,36 +177,15 @@ for (C in needs.split) {
   
 }
 
+# Name the groups with an integer (1:number of unique groups)
 geocoded$Group <- unlist(lapply(geocoded$cluster, function(x)which(names(clustcounts)==x)))
 
+# convert to sf                                
 addresses_sf <- geocoded %>% st_as_sf(coords = c("Longitude","Latitude"))
-table(addresses_sf$Group)
+#table(addresses_sf$Group)
 
 
-
-# addresses_spatial <- as_Spatial(addresses_sf)
-# 
-# 
-# mdist <- distm(addresses_spatial)
-# 
-# # cluster all points using a hierarchical clustering approach
-# hc <- hclust(as.dist(mdist), method="complete")
-# 
-# # define the distance threshold, in this case 40 m
-# d=10000
-# 
-# # define clusters based on a tree "height" cutoff "d" and add them to the SpDataFrame
-# addresses_sf$clust <- cutree(hc, h=d)
-# 
-# table(addresses_sf$clust)
-
- library("colorspace") 
- pal <-choose_palette()
-
- length(unique(addresses_sf$Group))
-length("Set1")
-
-clust_pal <- colorFactor("Set1", addresses_sf$Group)
+# extremely inelegant way to make a big qualitative color palette 
 coolpal <- structure(list(r = c(0.374, 0.374, 0.051, 0.096, 0.876, 0.415, 
                      0.596, 0.724, 0.847, 0.588, 0.481, 0.142, 0.819, 0.91, 0.969, 
                      0.887, 0.432, 0.927, 0.381, 0.04, 0.374, 0.381, 0.819, 0.91, 0.847, 0.876, 0.887, .569), g = c(0.183, 0.905, 0.662, 
@@ -204,6 +197,8 @@ coolpal <- structure(list(r = c(0.374, 0.374, 0.051, 0.096, 0.876, 0.415,
                                                                                                                                                                                                      -20L))
 cool=rgb(coolpal$r, coolpal$g, coolpal$b)
 cool_pal <- colorFactor(cool, addresses_sf$Group)
+                                
+# Map it                                 
 map <- leaflet() %>%
   addTiles(group = "Google Satellite Imagery", urlTemplate = "https://mts1.google.com/vt/lyrs=s&hl=en&src=app&x={x}&y={y}&z={z}&s=G", attribution = 'Google') %>%
   addTiles(group = "Google Street Map", urlTemplate = "https://mt0.google.com/vt/lyrs=m&hl=en&src=app&x={x}&y={y}&z={z}&s=G", attribution = 'Google') %>%
@@ -223,7 +218,8 @@ map <- leaflet() %>%
   )
 # map
 
-geocoded %>% write.csv(paste0("/home/sam/GBDSA-HJC/Housing/Case search/Grouped Outputs/geocoded and grouped ",Sys.Date(),".csv"), row.names = F)
-dups %>% write.csv(paste0("/home/sam/GBDSA-HJC/Housing/Case search/Grouped Outputs/duplicates (removed) ",Sys.Date(),".csv"), row.names = F)
-notgood %>% write.csv(paste0("/home/sam/GBDSA-HJC/Housing/Case search/Grouped Outputs/Failed to Geocode ",Sys.Date(),".csv"), row.names = F)
+# CSV outputs
+geocoded %>% write.csv(paste0("/Housing/Case search/Grouped Outputs/geocoded and grouped ",Sys.Date(),".csv"), row.names = F)
+dups %>% write.csv(paste0("/Housing/Case search/Grouped Outputs/duplicates (removed) ",Sys.Date(),".csv"), row.names = F)
+notgood %>% write.csv(paste0("/Housing/Case search/Grouped Outputs/Failed to Geocode ",Sys.Date(),".csv"), row.names = F)
 
